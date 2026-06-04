@@ -1,42 +1,47 @@
 import { useState } from "react";
 import BlogEditor from "./components/BlogEditor";
+import LinkedInAuth from "./components/LinkedInAuth";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export default function App() {
-  const [topic, setTopic]       = useState("");
-  const [platform, setPlatform] = useState("linkedin");
-  const [tone, setTone]         = useState("professional");
-  const [content, setContent]   = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const [blogId, setBlogId]     = useState(null);
-  const [blogs, setBlogs]       = useState([]);
-  const [copied, setCopied]     = useState(false);
-  const [image, setImage]       = useState(null);
-  const [imageUrl, setImageUrl] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [topic,         setTopic]         = useState("");
+  const [platform,      setPlatform]      = useState("linkedin");
+  const [tone,          setTone]          = useState("professional");
+  const [content,       setContent]       = useState("");
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState("");
+  const [blogId,        setBlogId]        = useState(null);
+  const [blogs,         setBlogs]         = useState([]);
+  const [copied,        setCopied]        = useState(false);
+  const [image,         setImage]         = useState(null);
+  const [imageUrl,      setImageUrl]      = useState("");
+  const [uploading,     setUploading]     = useState(false);
+  const [scheduledAt,   setScheduledAt]   = useState("");
+  const [linkedinToken, setLinkedinToken] = useState("");
+  const [publishing,    setPublishing]    = useState(false);
+  const [published,     setPublished]     = useState(false);
 
-  const [scheduledAt, setScheduledAt] = useState("");
-
+  // Generate blog
   const generateBlog = async () => {
     if (!topic) return;
     setLoading(true);
     setContent("");
     setError("");
+    setPublished(false);
 
     try {
-    const response = await fetch(`${API_URL}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        topic,
-        platform,
-        tone,
-        image_url: imageUrl || null,  // ← Add this line
-        scheduled_at: scheduledAt || null,  // ← Add this line
-      }),
-    });
+      const response = await fetch(`${API_URL}/api/generate`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          topic,
+          platform,
+          tone,
+          image_url:    imageUrl    || null,
+          scheduled_at: scheduledAt || null,
+        }),
+      });
 
       const data = await response.json();
 
@@ -54,6 +59,7 @@ export default function App() {
     setLoading(false);
   };
 
+  // Upload image to S3
   const uploadImage = async (file) => {
     setUploading(true);
     const formData = new FormData();
@@ -62,7 +68,7 @@ export default function App() {
     try {
       const response = await fetch(`${API_URL}/api/upload-image`, {
         method: "POST",
-        body: formData,
+        body:   formData,
       });
 
       const data = await response.json();
@@ -88,17 +94,67 @@ export default function App() {
     }
   };
 
+  // Fetch saved blogs
   const fetchBlogs = async () => {
-    const response = await fetch(`${API_URL}/api/blogs`);
-    const data     = await response.json();
-    setBlogs(data);
+    try {
+      const response = await fetch(`${API_URL}/api/blogs`);
+      const data     = await response.json();
+      setBlogs(data);
+    } catch (err) {
+      setError(`Error: ${err.message}`);
+    }
   };
 
+  // Copy to clipboard
   const copyToClipboard = () => {
     navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Publish to LinkedIn
+  const publishToLinkedIn = async () => {
+  const token = localStorage.getItem("linkedin_token");
+
+  if (!token) {
+    setError("Please connect LinkedIn first!");
+    return;
+  }
+  if (!blogId) {
+    setError("Please generate a blog first!");
+    return;
+  }
+
+  setPublishing(true);
+  setError("");
+
+  try {
+    const response = await fetch(`${API_URL}/api/publish/linkedin`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        blog_id: blogId,
+        token:   token,
+      }),
+    });
+
+    const data = await response.json();
+    console.log("Publish Response:", data);
+
+    if (data.status === "success") {
+      setPublished(true);
+      alert("🎉 Published to LinkedIn successfully!");
+    } else {
+      setError(data.message || "Publish failed!");
+      console.error("Publish error:", data);
+    }
+
+  } catch (err) {
+    setError(`Error: ${err.message}`);
+  }
+
+  setPublishing(false);
+};
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6">
@@ -188,7 +244,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Image Preview */}
           {imageUrl && (
             <div className="mt-3">
               <img
@@ -197,29 +252,29 @@ export default function App() {
                 className="w-full h-48 object-cover rounded-lg"
               />
               <p className="text-gray-500 text-xs mt-1">
-                ✅ Uploaded to S3: {imageUrl.substring(0, 50)}...
+                ✅ Uploaded to S3
               </p>
             </div>
           )}
         </div>
-                  <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
-            <label className="text-gray-400 text-xs mb-3 block uppercase tracking-widest">
-              Schedule Publish Date
-            </label>
 
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white"
-            />
-
-            {scheduledAt && (
-              <p className="text-green-400 text-xs mt-2">
-                📅 Scheduled for: {scheduledAt}
-              </p>
-            )}
-          </div>
+        {/* Schedule */}
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
+          <label className="text-gray-400 text-xs mb-3 block uppercase tracking-widest">
+            Schedule Publish Date (Optional)
+          </label>
+          <input
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(e) => setScheduledAt(e.target.value)}
+            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white"
+          />
+          {scheduledAt && (
+            <p className="text-green-400 text-xs mt-2">
+              📅 Scheduled for: {scheduledAt}
+            </p>
+          )}
+        </div>
 
         {/* Generate Button */}
         <button
@@ -265,6 +320,28 @@ export default function App() {
           </div>
         )}
 
+        {/* LinkedIn Section */}
+{content && blogId && (
+  <div className="space-y-3">
+    <div className="text-blue-400 text-xs font-bold uppercase tracking-widest">
+      📢 Publish to LinkedIn
+    </div>
+
+    <LinkedInAuth onToken={(token) => setLinkedinToken(token)} />
+
+    {/* Always show publish button if connected via localStorage */}
+    <button
+      onClick={publishToLinkedIn}
+      disabled={publishing || published}
+      className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition disabled:opacity-50"
+    >
+      {publishing ? "⏳ Publishing..." :
+       published  ? "✅ Published to LinkedIn!" :
+       "🚀 Publish to LinkedIn"}
+    </button>
+  </div>
+)}
+
         {/* Saved Blogs */}
         <button
           onClick={fetchBlogs}
@@ -297,7 +374,6 @@ export default function App() {
                 <div className="text-gray-400 text-xs mt-1">
                   {blog.platform} · {blog.tone} · {blog.created_at}
                 </div>
-                
               </div>
             ))}
           </div>
