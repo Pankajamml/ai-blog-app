@@ -1,6 +1,8 @@
 import { useState } from "react";
 import BlogEditor from "./components/BlogEditor";
 import LinkedInAuth from "./components/LinkedInAuth";
+import Dashboard from "./components/Dashboard";
+
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -21,14 +23,16 @@ export default function App() {
   const [linkedinToken, setLinkedinToken] = useState("");
   const [publishing,    setPublishing]    = useState(false);
   const [published,     setPublished]     = useState(false);
+  const [activeTab, setActiveTab] = useState("create");
 
-  // Generate blog
   const generateBlog = async () => {
     if (!topic) return;
     setLoading(true);
     setContent("");
     setError("");
     setPublished(false);
+
+    const token = localStorage.getItem("linkedin_token");
 
     try {
       const response = await fetch(`${API_URL}/api/generate`, {
@@ -38,8 +42,9 @@ export default function App() {
           topic,
           platform,
           tone,
-          image_url:    imageUrl    || null,
-          scheduled_at: scheduledAt || null,
+          image_url:      imageUrl    || null,
+          scheduled_at:   scheduledAt || null,
+          linkedin_token: scheduledAt ? token : null,
         }),
       });
 
@@ -59,7 +64,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // Upload image to S3
   const uploadImage = async (file) => {
     setUploading(true);
     const formData = new FormData();
@@ -94,7 +98,6 @@ export default function App() {
     }
   };
 
-  // Fetch saved blogs
   const fetchBlogs = async () => {
     try {
       const response = await fetch(`${API_URL}/api/blogs`);
@@ -105,56 +108,52 @@ export default function App() {
     }
   };
 
-  // Copy to clipboard
   const copyToClipboard = () => {
     navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Publish to LinkedIn
   const publishToLinkedIn = async () => {
-  const token = localStorage.getItem("linkedin_token");
+    const token = localStorage.getItem("linkedin_token");
 
-  if (!token) {
-    setError("Please connect LinkedIn first!");
-    return;
-  }
-  if (!blogId) {
-    setError("Please generate a blog first!");
-    return;
-  }
-
-  setPublishing(true);
-  setError("");
-
-  try {
-    const response = await fetch(`${API_URL}/api/publish/linkedin`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        blog_id: blogId,
-        token:   token,
-      }),
-    });
-
-    const data = await response.json();
-    console.log("Publish Response:", data);
-
-    if (data.status === "success") {
-      setPublished(true);
-      alert("🎉 Published to LinkedIn successfully!");
-    } else {
-      setError(data.message || "Publish failed!");
-      console.error("Publish error:", data);
+    if (!token) {
+      setError("Please connect LinkedIn first!");
+      return;
+    }
+    if (!blogId) {
+      setError("Please generate a blog first!");
+      return;
     }
 
-  } catch (err) {
-    setError(`Error: ${err.message}`);
-  }
+    setPublishing(true);
+    setError("");
 
-  setPublishing(false);
-};
+    try {
+      const response = await fetch(`${API_URL}/api/publish/linkedin`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          blog_id: blogId,
+          token:   token,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        setPublished(true);
+        alert("🎉 Published to LinkedIn successfully!");
+      } else {
+        setError(data.message || "Publish failed!");
+      }
+
+    } catch (err) {
+      setError(`Error: ${err.message}`);
+    }
+
+    setPublishing(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6">
@@ -168,6 +167,41 @@ export default function App() {
           React → Laravel → Groq AI → MySQL → S3
         </p>
       </div>
+      {/* Tab Navigation */}
+<div className="flex justify-center gap-2 mb-6">
+  <button
+    onClick={() => setActiveTab("create")}
+    className={`px-6 py-2 rounded-xl font-bold text-sm transition ${
+      activeTab === "create"
+        ? "bg-cyan-500 text-black"
+        : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+    }`}
+  >
+    ✍️ Create Blog
+  </button>
+  <button
+    onClick={() => setActiveTab("dashboard")}
+    className={`px-6 py-2 rounded-xl font-bold text-sm transition ${
+      activeTab === "dashboard"
+        ? "bg-cyan-500 text-black"
+        : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+    }`}
+  >
+    📊 Dashboard
+  </button>
+</div>
+
+{/* Dashboard Tab */}
+{activeTab === "dashboard" && <Dashboard />}
+
+{/* Create Tab — wrap your existing content */}
+{activeTab === "create" && (
+  <div className="space-y-4">
+    {/* ALL your existing blog creation content goes here */}
+  </div>
+)}
+
+
 
       <div className="max-w-3xl mx-auto space-y-4">
 
@@ -232,28 +266,21 @@ export default function App() {
             </label>
 
             {image && !uploading && (
-              <span className="text-green-400 text-sm">
-                ✅ {image.name}
-              </span>
+              <span className="text-green-400 text-sm">✅ {image.name}</span>
             )}
 
             {uploading && (
-              <span className="text-yellow-400 text-sm">
-                ⏳ Uploading to S3...
-              </span>
+              <span className="text-yellow-400 text-sm">⏳ Uploading to S3...</span>
             )}
           </div>
 
-          {imageUrl && (
+          {imageUrl && imageUrl.length > 0 && (
             <div className="mt-3">
               <img
                 src={imageUrl}
                 alt="Blog cover"
                 className="w-full h-48 object-cover rounded-lg"
               />
-              <p className="text-gray-500 text-xs mt-1">
-                ✅ Uploaded to S3
-              </p>
             </div>
           )}
         </div>
@@ -307,10 +334,7 @@ export default function App() {
               </button>
             </div>
 
-            <BlogEditor
-              content={content}
-              onChange={setContent}
-            />
+            <BlogEditor content={content} onChange={setContent} />
 
             {blogId && (
               <div className="text-gray-500 text-xs text-right">
@@ -321,26 +345,25 @@ export default function App() {
         )}
 
         {/* LinkedIn Section */}
-{content && blogId && (
-  <div className="space-y-3">
-    <div className="text-blue-400 text-xs font-bold uppercase tracking-widest">
-      📢 Publish to LinkedIn
-    </div>
+        {content && blogId && (
+          <div className="space-y-3">
+            <div className="text-blue-400 text-xs font-bold uppercase tracking-widest">
+              📢 Publish to LinkedIn
+            </div>
 
-    <LinkedInAuth onToken={(token) => setLinkedinToken(token)} />
+            <LinkedInAuth onToken={(token) => setLinkedinToken(token)} />
 
-    {/* Always show publish button if connected via localStorage */}
-    <button
-      onClick={publishToLinkedIn}
-      disabled={publishing || published}
-      className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition disabled:opacity-50"
-    >
-      {publishing ? "⏳ Publishing..." :
-       published  ? "✅ Published to LinkedIn!" :
-       "🚀 Publish to LinkedIn"}
-    </button>
-  </div>
-)}
+            <button
+              onClick={publishToLinkedIn}
+              disabled={publishing || published}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition disabled:opacity-50"
+            >
+              {publishing ? "⏳ Publishing..." :
+               published  ? "✅ Published to LinkedIn!" :
+               "🚀 Publish to LinkedIn"}
+            </button>
+          </div>
+        )}
 
         {/* Saved Blogs */}
         <button
@@ -361,7 +384,7 @@ export default function App() {
                 className="bg-gray-800 border border-gray-700 rounded-xl p-4 cursor-pointer hover:border-cyan-700 transition"
                 onClick={() => setContent(blog.content)}
               >
-                {blog.image_url && (
+                {blog.image_url && blog.image_url.length > 0 && (
                   <img
                     src={blog.image_url}
                     alt={blog.topic}
