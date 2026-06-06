@@ -4,10 +4,9 @@ const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export default function LinkedInCallback() {
   const [status, setStatus] = useState("Connecting to LinkedIn...");
-  const exchanged = useRef(false);  // ← Prevents double call
+  const exchanged = useRef(false);
 
   useEffect(() => {
-    // Only run once
     if (exchanged.current) return;
     exchanged.current = true;
 
@@ -36,14 +35,10 @@ export default function LinkedInCallback() {
         localStorage.setItem("linkedin_token", data.token);
         localStorage.setItem("linkedin_name",  data.name);
         setStatus(`✅ Connected as ${data.name}! Redirecting...`);
-
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 1500);
+        setTimeout(() => { window.location.href = "/"; }, 1500);
       } else {
         setStatus(`❌ ${data.message}`);
       }
-
     } catch (err) {
       setStatus(`❌ ${err.message}`);
     }

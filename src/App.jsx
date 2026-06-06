@@ -27,35 +27,37 @@ export default function App() {
 
   const generateBlog = async () => {
     if (!topic) return;
-    setLoading(true);
-    setContent("");
-    setError("");
-    setPublished(false);
+  setLoading(true);
+  setContent("");
+  setError("");
 
     const token = localStorage.getItem("linkedin_token");
 
     try {
       const response = await fetch(`${API_URL}/api/generate`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
-          topic,
-          platform,
-          tone,
-          image_url:      imageUrl    || null,
-          scheduled_at:   scheduledAt || null,
-          linkedin_token: scheduledAt ? token : null,
-        }),
-      });
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        topic,
+        platform,
+        tone,
+        image_url:      imageUrl    || null,
+        scheduled_at:   scheduledAt || null,
+        linkedin_token: scheduledAt ? token : null,
+      }),
+    });
 
-      const data = await response.json();
+     const data = await response.json();
 
-      if (data.status === "success") {
-        setContent(data.content);
-        setBlogId(data.blog_id);
-      } else {
-        setError(data.message || "Something went wrong!");
+if (data.status === "success") {
+      setContent(data.content);
+      setBlogId(data.blog_id);
+      if (scheduledAt) {
+        alert(`📅 Blog scheduled for ${scheduledAt}!`);
       }
+    } else {
+      setError(data.message || "Something went wrong!");
+    }
 
     } catch (err) {
       setError(`Error: ${err.message}`);
@@ -163,9 +165,10 @@ export default function App() {
         <h1 className="text-3xl font-bold text-cyan-400 mb-2">
           AI Blog Generator
         </h1>
-        <p className="text-gray-400 text-sm">
-          React → Laravel → Groq AI → MySQL → S3
-        </p>
+      </div>
+      {/* LinkedIn Connect - Always visible at top */}
+      <div className="mb-4">
+        <LinkedInAuth onToken={(token) => setLinkedinToken(token)} />
       </div>
       {/* Tab Navigation */}
 <div className="flex justify-center gap-2 mb-6">
@@ -345,26 +348,27 @@ export default function App() {
         )}
 
         {/* LinkedIn Section */}
-        {content && blogId && (
-          <div className="space-y-3">
-            <div className="text-blue-400 text-xs font-bold uppercase tracking-widest">
-              📢 Publish to LinkedIn
-            </div>
+{content && blogId && (
+  <div className="space-y-3">
+    <div className="text-blue-400 text-xs font-bold uppercase tracking-widest">
+      📢 Publish to LinkedIn
+    </div>
 
-            <LinkedInAuth onToken={(token) => setLinkedinToken(token)} />
-
-            <button
-              onClick={publishToLinkedIn}
-              disabled={publishing || published}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition disabled:opacity-50"
-            >
-              {publishing ? "⏳ Publishing..." :
-               published  ? "✅ Published to LinkedIn!" :
-               "🚀 Publish to LinkedIn"}
-            </button>
-          </div>
-        )}
-
+    {localStorage.getItem("linkedin_token") ? (
+      <button
+        onClick={publishToLinkedIn}
+        disabled={publishing || published}
+        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition disabled:opacity-50"
+      >
+        {publishing ? "⏳ Publishing..." :
+         published  ? "✅ Published!" :
+         "🚀 Publish to LinkedIn"}
+      </button>
+    ) : (
+      <LinkedInAuth onToken={(token) => setLinkedinToken(token)} />
+    )}
+  </div>
+)}
         {/* Saved Blogs */}
         <button
           onClick={fetchBlogs}
